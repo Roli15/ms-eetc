@@ -8,6 +8,86 @@ from matplotlib import pyplot as plt
 from mseetc.track import Track
 
 
+def getTrackVelocityAtPositions(speedLimitPositions, speedLimits, positions):
+    """
+    Return stepwise track speed limit at given positions.
+    Assumes speedLimitPositions are sorted increasingly.
+    """
+
+    indices = np.searchsorted(speedLimitPositions, positions, side="right") - 1
+    indices = np.clip(indices, 0, len(speedLimits) - 1)
+
+    return speedLimits[indices]
+
+
+def getBrakingTargetsFromSpeedLimits(track):
+
+    speedLimitPositions = track.speedLimits.index.to_numpy(dtype=float)
+    speedLimits = track.speedLimits["Speed limit [m/s]"].to_numpy(dtype=float)
+
+    # Add final stop target at end of track
+    speedLimitPositions = np.append(speedLimitPositions, track.length)
+    speedLimits = np.append(speedLimits, 0.0)
+
+    v_max = max(speedLimits)
+
+    targets = []
+
+    for idx in range(1, len(speedLimitPositions)):
+
+        # Only speed decreases require a braking curve
+        if speedLimits[idx] < speedLimits[idx-1]:
+
+            targets.append(
+                BrakingTarget(
+                position=speedLimitPositions[idx],
+                overlap=100,
+                permittedVelocity=v_max,
+                targetVelocity=speedLimits[idx],
+                )
+            )
+
+    return targets, speedLimitPositions, speedLimits
+
+
+def getEtcsSpeedLimits(trainBrakingData, track, positionStep=20.0):
+
+    calculator = EtcsBrakingCurveCalculator(trainBrakingData, track)
+
+    targets, speedLimitPositions, speedLimits = getBrakingTargetsFromSpeedLimits(track)
+
+    # Compute P curves for all speed decreases
+    pCurves = []
+
+    for target in targets:
+
+        curveSet = calculator.computeTarget(target)
+        curveSet["P"].loc[target.position, "Velocity [m/s]"] = target.targetVelocity
+        pCurves.append(curveSet["P"])
+
+    # Build common position grid
+    positions = np.arange(0.0, track.length + positionStep, positionStep)
+    positions = np.union1d(positions, speedLimitPositions)
+    positions = np.sort(positions)
+
+    # Start with the ordinary track speed limit
+    etcsVelocities = getTrackVelocityAtPositions(speedLimitPositions, speedLimits, positions)
+
+    # Apply every ETCS P curve as an additional restriction
+    for pCurve in pCurves:
+
+        curvePositions = pCurve.index.to_numpy(dtype=float)
+        curveVelocities = pCurve["Velocity [m/s]"].to_numpy(dtype=float)
+
+        mask = ((curvePositions.min() <= positions) & (positions <= curvePositions.max()))
+
+        interpolatedCurveVelocities = np.interp(positions[mask], curvePositions, curveVelocities)
+
+        etcsVelocities[mask] = np.minimum(etcsVelocities[mask], interpolatedCurveVelocities)
+
+    return positions, etcsVelocities
+
+
 def shiftCurveByTime(dfCurve, timeShift):
 
     positionsOriginal = dfCurve.index.to_numpy()
