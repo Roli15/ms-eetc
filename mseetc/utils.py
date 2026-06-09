@@ -541,7 +541,7 @@ def pickEquallySpacedPoints(startPoint, endPoint, numIntervals, requiredPoints):
         if len(cand_without_required) >= num_of_remaining_points:
 
             picked_points = np.random.choice(cand_without_required, size=num_of_remaining_points, replace=False)
-            return picked_points
+            return np.sort(np.r_[requiredPoints, picked_points])
 
         m *= 2
 
@@ -626,6 +626,22 @@ def plotCurvatures(track, pos_adj, c_adj, c_linear):
     ax.figure.tight_layout()
 
     plt.show()
+
+
+def getRelevantEtcsBrakingPositions(track):
+
+    relevantPositions = []
+
+    positions = track.etcsPositions
+    velocities = track.etcsVelocities
+
+    for idx in range(1, len(positions)):
+
+        if velocities[idx - 2] > velocities[idx - 1] == velocities[idx]:
+
+            relevantPositions.append(positions[idx])
+
+    return relevantPositions
 
 
 if __name__ == '__main__':

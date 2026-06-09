@@ -1,6 +1,4 @@
-import numpy as np
 import pandas as pd
-import casadi as ca
 
 from mseetc.train import *
 
@@ -27,9 +25,11 @@ class OptionsCasadiSolver(Options):
 
         self.integrateLosses = False  # integrate losses or take mid-point rule
 
-        self.chooseClosestTunnelCrossSection = True # if exact tunnel cross section is not specified in train tunnel resistances, choose the closest value
+        self.chooseClosestTunnelCrossSection = True  # if exact tunnel cross section is not specified in train tunnel resistances, choose the closest value
 
         self.pwcLengthDependentTrackAttributes = False
+
+        self.withEtcsBrakingCurves = False  # use ETCS braking curves
 
         super().__init__(paramsDict)
 
@@ -127,6 +127,11 @@ class casadiSolver():
 
         self.points = computeDiscretizationPoints(track, numIntervals, opts)
         self.steps = np.diff(self.points.index)
+
+        if opts.withEtcsBrakingCurves:
+
+            velocities = np.interp(self.points.index.to_numpy(), track.etcsPositions, track.etcsVelocities)
+            self.points["Speed limit [m/s]"] = velocities
 
         # real-time parameters
 

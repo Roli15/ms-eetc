@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from mseetc.track import Track
+# from mseetc.track import Track
 
 
 def getTrackVelocityAtPositions(speedLimitPositions, speedLimits, positions):
@@ -590,6 +590,8 @@ class EtcsBrakingCurveCalculator:
 
 if __name__ == '__main__':
 
+    from mseetc.track import Track
+
     trainBrakingData = {
         "A_brake_emergency [m/s^2]": {
             "velocity [m/s]": [0, 20, 40, 60],
@@ -597,7 +599,7 @@ if __name__ == '__main__':
         },
         "A_brake_service [m/s^2]": {
             "velocity [m/s]": [0, 20, 40, 60],
-            "value [m/s^2]": [-0.5, -0.45, -0.4, -0.35],
+            "value [m/s^2]": [-0.55, -0.5, -0.45, -0.4],
         },
         "K_dry_rst [-]": 0.8,
         "M_NVAVADH [-]": 0,
@@ -617,7 +619,7 @@ if __name__ == '__main__':
             position=5000,
             overlap= 100,
             permittedVelocity=160/3.6,
-            targetVelocity=80/3.6
+            targetVelocity=0/3.6
     )
 
     calculator = EtcsBrakingCurveCalculator(trainBrakingData, track, distancePre=5000, distancePost=1000)

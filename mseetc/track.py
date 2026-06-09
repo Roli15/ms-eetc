@@ -1,13 +1,13 @@
 import json
-import math
 import sys
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from mseetc.etcs import getEtcsSpeedLimits
 from mseetc.utils import checkTTOBenchVersion, convertUnit, pickEquallySpacedPoints, plotSpeedLimits, plotGradients, \
-    plotCurvatures
+    plotCurvatures, getRelevantEtcsBrakingPositions
 
 plotDebug = False
 
@@ -98,7 +98,14 @@ def computeDiscretizationPoints(track, numIntervals, opts):
 
     df1 = track.mergeDataFrames()
 
-    pos = pickEquallySpacedPoints(0, track.length, numIntervals, df1.index.to_numpy(dtype=float))
+    requiredPoints = df1.index.to_numpy(dtype=float)
+
+    if opts.withEtcsBrakingCurves:
+
+        brakingPoints = getRelevantEtcsBrakingPositions(track)
+        requiredPoints = np.append(requiredPoints, brakingPoints)
+
+    pos = pickEquallySpacedPoints(0, track.length, numIntervals, requiredPoints)
 
     df2 = pd.DataFrame({'position [m]':pos}).set_index('position [m]')
     df3 = df2.join(df1, how='outer').ffill()
@@ -596,6 +603,14 @@ class Track():
         self.gradients = crop(self.gradients)
         self.curvatures = crop(self.curvatures)
         self.crossSections = crop(self.crossSections)
+
+
+    def setEtcsSpeedLimits(self, trainBrakingData):
+
+        etcsPositions, etcsVelocities = getEtcsSpeedLimits(trainBrakingData, self)
+
+        self.etcsPositions = etcsPositions
+        self.etcsVelocities = etcsVelocities
 
 
     def updateTrainLengthDependentValues(self, train):

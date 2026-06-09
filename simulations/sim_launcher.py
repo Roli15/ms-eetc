@@ -25,6 +25,45 @@ def get_power_loss_function(train, mode="perfect",* ,auxiliaries: float = 27_000
         raise ValueError("mode must be one of: 'perfect', 'static', 'dynamic'")
 
 
+def printStats(df, stats, solver):
+
+    if df is not None:
+
+        print("")
+        print("Objective value = {:.2f} {}".format(stats['Cost'], 'kWh' if solver.opts.energyOptimal else 's'))
+        print("")
+        print("Maximum acceleration: {:5.2f}, with bound {}".format(df.max()['Acceleration [m/s^2]'], train.accMax if train.accMax is not None else 'None'))
+        print("Maximum deceleration: {:5.2f}, with bound {}".format(df.min()['Acceleration [m/s^2]'],train.accMin if train.accMin is not None else 'None'))
+
+    else:
+
+        print("Solver failed!")
+
+
+def getTrainBrakingData():
+
+    return {
+        "A_brake_emergency [m/s^2]": {
+            "velocity [m/s]": [0, 20, 40, 60],
+            "value [m/s^2]": [-0.9, -0.85, -0.8, -0.75],
+        },
+        "A_brake_service [m/s^2]": {
+            "velocity [m/s]": [0, 20, 40, 60],
+            "value [m/s^2]": [-0.55, -0.5, -0.45, -0.4],
+        },
+        "K_dry_rst [-]": 0.8,
+        "M_NVAVADH [-]": 0,
+        "K_wet_rst [-]": 0.9,
+        "T_traction [s]": 1,
+        "T_be [s]": 4,
+        "Kt_int [-]": 1.15,
+        "v_uncertainty [%]": 2.98,
+        "T_bs [s]": 3,
+        "T_bs1 [s]": 3,
+        "T_bs2 [s]": 3,
+    }
+
+
 if __name__ == '__main__':
 
     from mseetc.train import Train
@@ -45,45 +84,21 @@ if __name__ == '__main__':
     track.updateTrainLengthDependentValues(train)
     track.updateLimits(positionStart=startPosition, positionEnd=endPosition, unit='m')
 
-    trainBrakingData = {
-        "A_brake_emergency [m/s^2]": {
-            "velocity [m/s]": [0, 20, 40, 60],
-            "value [m/s^2]": [-0.9, -0.85, -0.8, -0.75],
-        },
-        "A_brake_service [m/s^2]": {
-            "velocity [m/s]": [0, 20, 40, 60],
-            "value [m/s^2]": [-0.5, -0.45, -0.4, -0.35],
-        },
-        "K_dry_rst [-]": 0.8,
-        "M_NVAVADH [-]": 0,
-        "K_wet_rst [-]": 0.9,
-        "T_traction [s]": 1,
-        "T_be [s]": 4,
-        "Kt_int [-]": 1.15,
-        "v_uncertainty [%]": 2.98,
-        "T_bs [s]": 3,
-        "T_bs1 [s]": 3,
-        "T_bs2 [s]": 3,
-    }
-
     opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True}
 
     solver = casadiSolver(train, track, opts)
-
     df, stats = solver.solve(duration)
 
-    # print some info
-    if df is not None:
+    printStats(df, stats, solver)
 
-        print("")
-        print("Objective value = {:.2f} {}".format(stats['Cost'], 'kWh' if solver.opts.energyOptimal else 's'))
-        print("")
-        print("Maximum acceleration: {:5.2f}, with bound {}".format(df.max()['Acceleration [m/s^2]'], train.accMax if train.accMax is not None else 'None'))
-        print("Maximum deceleration: {:5.2f}, with bound {}".format(df.min()['Acceleration [m/s^2]'], train.accMin if train.accMin is not None else 'None'))
+    trainBrakingData = getTrainBrakingData()
+    track.setEtcsSpeedLimits(trainBrakingData)
+    opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True, 'withEtcsBrakingCurves': True}
 
-    else:
+    solverEtcs = casadiSolver(train, track, opts)
+    dfEtcs, statsEtcs = solverEtcs.solve(duration)
 
-        print("Solver failed!")
+    printStats(dfEtcs, statsEtcs, solverEtcs)
 
 
     ### Plot Trajectory
@@ -97,9 +112,12 @@ if __name__ == '__main__':
 
     etcsLimitsPositions, etcsLimitsVelocities = getEtcsSpeedLimits(trainBrakingData, track)
 
-    ax.step(x_plot/1000, v_plot*3.6, where="post", label="Track Speed Limit")
-    ax.plot(etcsLimitsPositions/1000, etcsLimitsVelocities*3.6, label="ETCS Speed Limit")
-    ax.plot(df["Position [m]"] / 1000, df["Velocity [m/s]"] * 3.6, label="non-adjusted speed profile")
+    ax.step(x_plot/1000, v_plot*3.6, where="post", color="black", linestyle="-", label="Track Speed Limit")
+    ax.plot(etcsLimitsPositions/1000, etcsLimitsVelocities*3.6, color="red", linestyle="-", label="ETCS Speed Limit")
+
+    ax.plot(df["Position [m]"] / 1000, df["Velocity [m/s]"] * 3.6, linestyle="--", label="non-adjusted speed profile")
+    ax.plot(dfEtcs["Position [m]"] / 1000, dfEtcs["Velocity [m/s]"] * 3.6, linestyle="--", label="ETCS-adjusted speed profile")
+
     ax.set_title("Speed Profile Comparison")
     ax.set_xlabel("Position [km]")
     ax.set_ylabel("Velocity [km/h]")
@@ -109,3 +127,7 @@ if __name__ == '__main__':
     ax.figure.tight_layout()
 
     plt.show()
+
+    costRatio = (statsEtcs["Cost"] - stats["Cost"]) / stats["Cost"]
+
+    print(f"Cost increase with ETCS: {costRatio:.2%}")
