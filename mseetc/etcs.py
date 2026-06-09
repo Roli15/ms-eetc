@@ -165,10 +165,10 @@ class EtcsBrakingCurveCalculator:
         if not 0 <= target.permittedVelocity < 400 / 3.6:
             raise ValueError("permittedVelocity must be between 0 and 400 km/h.")
 
-        if not 0 < target.EoA < self.track.length:
+        if not 0 < target.EoA <= self.track.length:
             raise ValueError("EoA must lie within the track length.")
 
-        if not 0 < target.SvL < self.track.length:
+        if not 0 < target.SvL <= self.track.length + target.overlap:
             raise ValueError("SvL must lie within the track length.")
 
         if not 0 <= target.targetVelocity < target.permittedVelocity:
@@ -360,24 +360,19 @@ class EtcsBrakingCurveCalculator:
         return SBI_curve
 
 
-    def processCurvesBeforeTarget(self, curves, target):
+    def trimCurves(self, curves, target):
 
         permittedVelocity = target.permittedVelocity
-        start_position = target.position - self.distancePre
 
         speedLimits = computeCeilingSpeedLimits(permittedVelocity)
 
         curves["EBI"] = trimCurveToMaxVelocity(curves["EBI"], speedLimits["EBI [m/s]"])
-        curves["EBI"] = addStartPointToCurve(curves["EBI"], speedLimits["EBI [m/s]"], start_position)
 
         curves["SBI"] = trimCurveToMaxVelocity(curves["SBI"], speedLimits["SBI [m/s]"])
-        curves["SBI"] = addStartPointToCurve(curves["SBI"], speedLimits["SBI [m/s]"], start_position)
 
         curves["W"] = trimCurveToMaxVelocity(curves["W"], speedLimits["Warning [m/s]"])
-        curves["W"] = addStartPointToCurve(curves["W"], speedLimits["Warning [m/s]"], start_position)
 
         curves["P"] = trimCurveToMaxVelocity(curves["P"], permittedVelocity)
-        curves["P"] = addStartPointToCurve(curves["P"], permittedVelocity, start_position)
 
         curves["I"] = trimCurveToMaxVelocity(curves["I"], permittedVelocity)
 
@@ -388,6 +383,24 @@ class EtcsBrakingCurveCalculator:
         curves["SBD"] = trimCurveFromMinPosition(curves["SBD"], curves["SBI"].index.to_numpy(dtype=float)[2])
 
         curves["SBI1"] = trimCurveFromMinPosition(curves["SBI1"], curves["SBI"].index.to_numpy(dtype=float)[2])
+
+        return curves
+
+
+    def processCurvesBeforeTarget(self, curves, target):
+
+        permittedVelocity = target.permittedVelocity
+        start_position = target.position - self.distancePre
+
+        speedLimits = computeCeilingSpeedLimits(permittedVelocity)
+
+        curves["EBI"] = addStartPointToCurve(curves["EBI"], speedLimits["EBI [m/s]"], start_position)
+
+        curves["SBI"] = addStartPointToCurve(curves["SBI"], speedLimits["SBI [m/s]"], start_position)
+
+        curves["W"] = addStartPointToCurve(curves["W"], speedLimits["Warning [m/s]"], start_position)
+
+        curves["P"] = addStartPointToCurve(curves["P"], permittedVelocity, start_position)
 
         return curves
 
@@ -450,16 +463,18 @@ class EtcsBrakingCurveCalculator:
 
         curves["I"] = shiftCurveByTime(curves["P"], T_indication)
 
-        curves = self.processCurvesBeforeTarget(curves, target)
-
-        if target.targetVelocity > 0:
-
-            curves = self.processCurvcesAfterTarget(curves, target)
+        curves = self.trimCurves(curves, target)
 
         return curves
 
 
     def plotCurves(self, curves, target):
+
+        # curves = self.processCurvesBeforeTarget(curves, target)
+        #
+        # if target.targetVelocity > 0:
+        #
+        #     curves = self.processCurvcesAfterTarget(curves, target)
 
         targetPosition = target.EoA
         permittedVelocity = target.permittedVelocity
@@ -522,7 +537,7 @@ if __name__ == '__main__':
             position=5000,
             overlap= 100,
             permittedVelocity=160/3.6,
-            targetVelocity=0/3.6
+            targetVelocity=80/3.6
     )
 
     calculator = EtcsBrakingCurveCalculator(trainBrakingData, track, distancePre=5000, distancePost=1000)
