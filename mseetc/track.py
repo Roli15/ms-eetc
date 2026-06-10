@@ -250,6 +250,38 @@ class Track():
                                 data['tunnels']['units']['length'] if 'tunnels' in data else 'm',
                                 data['tunnels']['units']['cross section'] if 'tunnels' in data else 'm^2')
 
+        if "ETCS braking data" in data:
+
+            etcsData = data["ETCS braking data"]
+
+            requiredFields = {
+                "M_NVAVADH",
+                "Kt_int"
+            }
+
+            if set(etcsData) != requiredFields:
+
+                missingFields = requiredFields - set(etcsData)
+                redundantFields = set(etcsData) - requiredFields
+
+                raise ValueError(
+                    "ETCS braking data must contain exactly the following fields: {}! "
+                    "Missing fields: {}. Redundant fields: {}.".format(
+                        ", ".join(sorted(requiredFields)),
+                        ", ".join(sorted(missingFields)) if missingFields else "none",
+                        ", ".join(sorted(redundantFields)) if redundantFields else "none",
+                    )
+                )
+
+            self.MNvavadh = convertUnit(etcsData["M_NVAVADH"]["value"], etcsData["M_NVAVADH"]["unit"])
+
+            self.KtInt = convertUnit(etcsData["Kt_int"]["value"], etcsData["Kt_int"]["unit"])
+
+        else:
+
+            self.MNvavadh = None
+            self.KtInt = None
+
 
         numStops = len(data['stops']['values'])
         indxDeparture = config['from'] if 'from' in config else 0
@@ -325,6 +357,14 @@ class Track():
         if not self.crossSectionsOk():
 
             raise ValueError("Issue with tunnel cross sections!")
+
+        if self.MNvavadh is not None and (self.MNvavadh < 0 or np.isinf(self.MNvavadh)):
+
+            raise ValueError("ETCS braking parameter 'M_NVAVADH' must be positive or zero, not {}!".format(self.MNvavadh))
+
+        if self.KtInt is not None and (self.KtInt <= 0 or np.isinf(self.KtInt)):
+
+            raise ValueError("ETCS braking parameter 'Kt_int' must be positive, not {}!".format(self.KtInt))
 
 
     def importGradientTuples(self, tuples, unit='permil'):
@@ -605,9 +645,9 @@ class Track():
         self.crossSections = crop(self.crossSections)
 
 
-    def setEtcsSpeedLimits(self, trainBrakingData):
+    def setEtcsSpeedLimits(self, train):
 
-        etcsPositions, etcsVelocities = getEtcsSpeedLimits(trainBrakingData, self)
+        etcsPositions, etcsVelocities = getEtcsSpeedLimits(train, self)
 
         self.etcsPositions = etcsPositions
         self.etcsVelocities = etcsVelocities

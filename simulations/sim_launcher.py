@@ -40,30 +40,6 @@ def printStats(df, stats, solver):
         print("Solver failed!")
 
 
-def getTrainBrakingData():
-
-    return {
-        "A_brake_emergency [m/s^2]": {
-            "velocity [m/s]": [0, 20, 40, 60],
-            "value [m/s^2]": [-0.9, -0.85, -0.8, -0.75],
-        },
-        "A_brake_service [m/s^2]": {
-            "velocity [m/s]": [0, 20, 40, 60],
-            "value [m/s^2]": [-0.55, -0.5, -0.45, -0.4],
-        },
-        "K_dry_rst [-]": 0.8,
-        "M_NVAVADH [-]": 0,
-        "K_wet_rst [-]": 0.9,
-        "T_traction [s]": 1,
-        "T_be [s]": 4,
-        "Kt_int [-]": 1.15,
-        "v_uncertainty [%]": 2.98,
-        "T_bs [s]": 3,
-        "T_bs1 [s]": 3,
-        "T_bs2 [s]": 3,
-    }
-
-
 if __name__ == '__main__':
 
     from mseetc.train import Train
@@ -84,6 +60,7 @@ if __name__ == '__main__':
     track.updateTrainLengthDependentValues(train)
     track.updateLimits(positionStart=startPosition, positionEnd=endPosition, unit='m')
 
+    # non-adjusted speed profile
     opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True}
 
     solver = casadiSolver(train, track, opts)
@@ -91,8 +68,8 @@ if __name__ == '__main__':
 
     printStats(df, stats, solver)
 
-    trainBrakingData = getTrainBrakingData()
-    track.setEtcsSpeedLimits(trainBrakingData)
+    # ETCS-adjusted speed profile
+    track.setEtcsSpeedLimits(train)
     opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True, 'withEtcsBrakingCurves': True}
 
     solverEtcs = casadiSolver(train, track, opts)
@@ -110,7 +87,7 @@ if __name__ == '__main__':
     x_plot = np.append(x, track.length)
     v_plot = np.append(v, v[-1])
 
-    etcsLimitsPositions, etcsLimitsVelocities = getEtcsSpeedLimits(trainBrakingData, track)
+    etcsLimitsPositions, etcsLimitsVelocities = getEtcsSpeedLimits(train, track)
 
     ax.step(x_plot/1000, v_plot*3.6, where="post", color="black", linestyle="-", label="Track Speed Limit")
     ax.plot(etcsLimitsPositions/1000, etcsLimitsVelocities*3.6, color="red", linestyle="-", label="ETCS Speed Limit")
