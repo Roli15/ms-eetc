@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 
 from mseetc.efficiency import totalLossesFunction
 from mseetc.etcs import getEtcsSpeedLimits
+from mseetc.journey import Journey
 from mseetc.ocp import casadiSolver
 
 
@@ -55,9 +56,11 @@ if __name__ == '__main__':
     train.withPnBrake = False
     train.powerLosses = get_power_loss_function(train, "static")
 
-    track = Track(config={'id':'00_var_speed_limit_quick_change'}, pathJSON='../tracks')
+    # track = Track(config={'id':'00_var_speed_limit_quick_change'}, pathJSON='../tracks')
     track = Track(config={'id':'CH_StGallen_Wil'}, pathJSON='../tracks')
     track.updateTrainLengthDependentValues(train)
+
+    journey = Journey(config={'id':'CH_StGallen_Wil_Journey_01'}, pathJSON='../journeys')
     track.updateLimits(positionStart=startPosition, positionEnd=endPosition, unit='m')
 
     # non-adjusted speed profile
