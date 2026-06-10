@@ -283,18 +283,27 @@ class EtcsBrakingCurveCalculator:
 
     def computeAGradient(self, currentPosition):
 
-        positions = self.track.gradients.index.values
-        gradients = self.track.gradients["Gradient [permil]"].values
+        positions = self.track.gradients.index.to_numpy(dtype=float)
+        gradients = self.track.gradients["Gradient [permil]"].to_numpy(dtype=float)
+
+        if "Gradient linear term [permil/m]" in self.track.gradients.columns:
+
+            gradientsLinearTerm = self.track.gradients["Gradient linear term [permil/m]"].to_numpy(dtype=float)
+
+        else:
+
+            gradientsLinearTerm = np.zeros(len(self.track.gradients))
+
 
         idx = bisect_right(positions, currentPosition) - 1
         idx = max(0, min(idx, len(positions) - 1))
 
-        if idx == 0:
+        # If the backward-computed curve extends before the first known gradient point, assume flat track.
+        if currentPosition < positions[0]:
 
-            # If the backward-computed curve extends before the first known gradient point, assume flat track.
             return 0
 
-        gradient = gradients[idx]
+        gradient = gradients[idx] + gradientsLinearTerm[idx] * (currentPosition - positions[idx])
         return 9.81 * gradient * 0.001
 
 
@@ -360,7 +369,7 @@ class EtcsBrakingCurveCalculator:
         T_traction = trainBrakingData["T_traction [s]"]
         T_be = trainBrakingData["T_be [s]"]
         Kt_int = trainBrakingData["Kt_int [-]"]
-        v_uncertainty = trainBrakingData["v_uncertainty [%]"] * 0.01
+        v_uncertainty = trainBrakingData["v_uncertainty [%]"]
 
         positionsEBD = EBD_curve.index.to_numpy()
         velocitiesEBD = EBD_curve["Velocity [m/s]"].to_numpy()
@@ -529,11 +538,11 @@ class EtcsBrakingCurveCalculator:
 
         curves["EBI"] = self.computeEBICurve(curves["EBD"], target.targetVelocity)
 
-        curves["SBI2"] = shiftCurveByTime(curves["EBI"], trainBrakingData["T_bs2 [s]"])
+        curves["SBI2"] = shiftCurveByTime(curves["EBI"], trainBrakingData["T_bs [s]"])
 
         curves["SBD"] = self.computeBrakingCurve(self.trainBrakingData["A_brake_service [m/s^2]"], target.EoA, target.permittedVelocity, target.targetVelocity)
 
-        curves["SBI1"] = shiftCurveByTime(curves["SBD"], trainBrakingData["T_bs1 [s]"])
+        curves["SBI1"] = shiftCurveByTime(curves["SBD"], trainBrakingData["T_bs [s]"])
 
         curves["SBI"] = self.computeSBICurve(curves["SBI1"], curves["SBI2"])
 
@@ -591,29 +600,31 @@ class EtcsBrakingCurveCalculator:
 if __name__ == '__main__':
 
     from mseetc.track import Track
+    from mseetc.train import Train
 
     trainBrakingData = {
-        "A_brake_emergency [m/s^2]": {
+        "A_brake_emergency [m/s^2]": {  # [train]
             "velocity [m/s]": [0, 20, 40, 60],
             "value [m/s^2]": [-0.9, -0.85, -0.8, -0.75],
         },
-        "A_brake_service [m/s^2]": {
+        "A_brake_service [m/s^2]": {  # [train]
             "velocity [m/s]": [0, 20, 40, 60],
             "value [m/s^2]": [-0.55, -0.5, -0.45, -0.4],
         },
-        "K_dry_rst [-]": 0.8,
-        "M_NVAVADH [-]": 0,
-        "K_wet_rst [-]": 0.9,
-        "T_traction [s]": 1,
-        "T_be [s]": 4,
-        "Kt_int [-]": 1.15,
-        "v_uncertainty [%]": 2.98,
-        "T_bs [s]": 3,
-        "T_bs1 [s]": 3,
-        "T_bs2 [s]": 3,
+        "K_dry_rst [-]": 0.8,  # [train]
+        "M_NVAVADH [-]": 0,  # [infra]
+        "K_wet_rst [-]": 0.9,  # [train]
+        "T_traction [s]": 1,  # [train]
+        "T_be [s]": 4,  # [train]
+        "Kt_int [-]": 1.15,  # [infra]
+        "v_uncertainty [%]": 2.98,  # [train]
+        "T_bs [s]": 3  # [train]
     }
 
+    train = Train(config={'id': 'CH_Stadler_FLIRT_TPF'}, pathJSON='../trains')
+
     track = Track(config={'id': 'CH_StGallen_Wil'}, pathJSON='../tracks')
+    track.updateTrainLengthDependentValues(train)
 
     target = BrakingTarget(
             position=5000,

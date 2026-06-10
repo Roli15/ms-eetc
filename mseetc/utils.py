@@ -372,7 +372,7 @@ def convertUnit(value, unit):
     Convert from any known unit to internally used unit.
     """
 
-    if unit in {'m', 'm/s', 'm^2', 'permil', 'kg', 'W', 'N', 'm/s^2', '-', 'N/(m/s)', 'N/(m/s)^2', 'kg/m'}:
+    if unit in {'s', 'm', 'm/s', 'm^2', 'permil', 'kg', 'W', 'N', 'm/s^2', '-', 'N/(m/s)', 'N/(m/s)^2', 'kg/m'}:
 
         valueOut = value
 
