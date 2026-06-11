@@ -91,7 +91,7 @@ def computeAltitude(gradients, length, altitudeStart=0):
     return df
 
 
-def computeDiscretizationPoints(track, numIntervals, opts):
+def computeDiscretizationPoints(track, numIntervals, opts, timingPointPositions):
     """
     Compute the space discretization points based on track characteristics and horizon length.
     """
@@ -99,6 +99,7 @@ def computeDiscretizationPoints(track, numIntervals, opts):
     df1 = track.mergeDataFrames()
 
     requiredPoints = df1.index.to_numpy(dtype=float)
+    requiredPoints = np.append(requiredPoints, timingPointPositions)
 
     if opts.withEtcsBrakingCurves:
 
@@ -616,15 +617,12 @@ class Track():
         Truncate track to given positions.
         """
 
-        positionStart = 0 if positionStart is None else positionStart
-        positionEnd = self.length if positionEnd is None else positionEnd
+        positionStart = 0 if positionStart is None else convertUnit(positionStart, unit)
+        positionEnd = self.length if positionEnd is None else convertUnit(positionEnd, unit)
 
         if (not 0 <= positionStart < self.length) or (not 0 < positionEnd <= self.length) :
 
             raise ValueError("Given positions must be between limits of track!")
-
-        positionStart = convertUnit(positionStart, unit)
-        positionEnd = convertUnit(positionEnd, unit)
 
         newPos = pd.DataFrame({'Position [m]':[positionStart]}).set_index('Position [m]')
 
@@ -637,7 +635,7 @@ class Track():
 
             return dfOut
 
-        self.length -= positionStart + (self.length - positionEnd)
+        self.length = positionEnd - positionStart
 
         self.speedLimits = crop(self.speedLimits)
         self.gradients = crop(self.gradients)

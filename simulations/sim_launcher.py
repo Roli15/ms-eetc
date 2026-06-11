@@ -26,7 +26,7 @@ def get_power_loss_function(train, mode="perfect",* ,auxiliaries: float = 27_000
         raise ValueError("mode must be one of: 'perfect', 'static', 'dynamic'")
 
 
-def printStats(df, stats, solver):
+def printStats(df, stats, solver, train):
 
     if df is not None:
 
@@ -61,15 +61,15 @@ if __name__ == '__main__':
     track.updateTrainLengthDependentValues(train)
 
     journey = Journey(config={'id':'CH_StGallen_Wil_Journey_01'}, pathJSON='../journeys')
-    track.updateLimits(positionStart=startPosition, positionEnd=endPosition, unit='m')
+    track.updateLimits(positionStart=journey.positionStart, positionEnd=journey.positionEnd, unit='m')
 
     # non-adjusted speed profile
     opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True}
 
-    solver = casadiSolver(train, track, opts)
-    df, stats = solver.solve(duration)
+    solver = casadiSolver(train, track, journey, opts)
+    df, stats = solver.solve(terminalTime=journey.terminalTime, initialTime=journey.initialTime)
 
-    printStats(df, stats, solver)
+    printStats(df, stats, solver, train)
 
     # ETCS-adjusted speed profile
     track.setEtcsSpeedLimits(train)
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     solverEtcs = casadiSolver(train, track, opts)
     dfEtcs, statsEtcs = solverEtcs.solve(duration)
 
-    printStats(dfEtcs, statsEtcs, solverEtcs)
+    printStats(dfEtcs, statsEtcs, solverEtcs, train)
 
 
     ### Plot Trajectory

@@ -41,16 +41,14 @@ class Journey():
 
         self.checkFields()
 
+        self.computeStartAndEndPoints()
+
+        self.computeInitialAndTerminalStates()
+
 
     def readTimingPoints(self, timingPoints):
 
         units = timingPoints['units']
-
-        positionUnit = units['position']
-        lowerTimeUnit = units['lower time constraint']
-        upperTimeUnit = units['upper time constraint']
-        lowerSpeedUnit = units['lower speed constraint']
-        upperSpeedUnit = units['upper speed constraint']
 
         values = {
             "Position [m]": [],
@@ -62,11 +60,11 @@ class Journey():
 
         for point in timingPoints['values']:
 
-            values["Position [m]"].append(convertUnit(point['position'], positionUnit))
-            values["Lower time constraint [s]"].append(self.convertConstraint(point['lower time constraint'], lowerTimeUnit))
-            values["Upper time constraint [s]"].append(self.convertConstraint(point['upper time constraint'], upperTimeUnit))
-            values["Lower speed constraint [m/s]"].append(self.convertConstraint(point['lower speed constraint'], lowerSpeedUnit))
-            values["Upper speed constraint [m/s]"].append(self.convertConstraint(point['upper speed constraint'], upperSpeedUnit))
+            values["Position [m]"].append(convertUnit(point['position'], units['position']))
+            values["Lower time constraint [s]"].append(self.convertConstraint(point['lower time constraint'], units['lower time constraint']))
+            values["Upper time constraint [s]"].append(self.convertConstraint(point['upper time constraint'], units['upper time constraint']))
+            values["Lower speed constraint [m/s]"].append(self.convertConstraint(point['lower speed constraint'], units['lower speed constraint']))
+            values["Upper speed constraint [m/s]"].append(self.convertConstraint(point['upper speed constraint'], units['upper speed constraint']))
 
         df = pd.DataFrame(values)
         df = df.set_index("Position [m]")
@@ -128,3 +126,32 @@ class Journey():
             if any(value is not None and (value < 0 or np.isinf(value)) for value in [tMin, tMax, vMin, vMax]):
 
                 raise ValueError("Timing point constraints must be positive finite numbers or None!")
+
+
+    def computeStartAndEndPoints(self):
+
+        self.positionStart = self.timingPoints.index.values[0]
+
+        self.positionEnd = self.timingPoints.index.values[-1]
+
+
+    def computeInitialAndTerminalStates(self):
+
+        self.initialTime = self.timingPoints.iloc[0]["Lower time constraint [s]"]
+
+        self.terminalTime = self.timingPoints.iloc[-1]["Upper time constraint [s]"]
+
+        self.initialVelocity = self.timingPoints.iloc[0]["Lower speed constraint [m/s]"]
+
+        self.terminalVelocity = self.timingPoints.iloc[-1]["Upper speed constraint [m/s]"]
+
+
+    def getTimingPoint(self, position):
+
+        idx = np.where(np.isclose(self.timingPoints.index.values, position))[0]
+
+        if len(idx) == 0:
+            return None
+
+        return self.timingPoints.iloc[idx[0]]
+

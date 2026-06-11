@@ -4,7 +4,7 @@ from mseetc.train import *
 
 from mseetc.track import computeDiscretizationPoints
 
-from mseetc.utils import Options, var, postProcessDataFrame, splitLosses, computeTunnelFactor
+from mseetc.utils import Options, var, postProcessDataFrame, splitLosses, computeTunnelFactor, isSet
 
 
 class OptionsCasadiSolver(Options):
@@ -81,11 +81,12 @@ class OptionsCasadiSolver(Options):
 class casadiSolver():
     "NLP solver object using casadi and ipopt."
 
-    def __init__(self, train, track, optsDict={}):
+    def __init__(self, train, track, journey, optsDict={}):
 
         # input checking
         track.checkFields()
         train.checkFields()
+        journey.checkFields()
 
         opts = OptionsCasadiSolver(optsDict)
 
@@ -125,7 +126,8 @@ class casadiSolver():
 
         # track parameters
 
-        self.points = computeDiscretizationPoints(track, numIntervals, opts)
+        timingPointPositions = journey.timingPoints.index.to_numpy(dtype=float)[1:-1] - journey.positionStart
+        self.points = computeDiscretizationPoints(track, numIntervals, opts, timingPointPositions)
         self.steps = np.diff(self.points.index)
 
         if opts.withEtcsBrakingCurves:
@@ -269,28 +271,60 @@ class casadiSolver():
             z += [time[i]]
             z += [velSq[i]]
 
-            if i == 0:
+            position = self.points.index.values[i]
+            timingPoint = journey.getTimingPoint(position + journey.positionStart)
 
-                # initial state constraints
-                lbz += [self.initialTime, self.initialVelocitySquared]
-                ubz += [self.initialTime, self.initialVelocitySquared]
+            speedLimit = self.points.iloc[i]['Speed limit [m/s]']
+            speedLimit = min(speedLimit, velocityMax)
 
-            elif i == numIntervals:
-
-                # terminal state constraints
-                lbz += [self.initialTime, self.terminalVelocitySquared]
-                ubz += [self.terminalTime, self.terminalVelocitySquared]
-
-            else:
-
-                # state constraints
-                speedLimit = self.points.iloc[i]['Speed limit [m/s]']
-                speedLimit = min(speedLimit, velocityMax)
+            if i > 0:
 
                 speedLimit = min(speedLimit, self.points.iloc[i-1]['Speed limit [m/s]'])  # do not accelerate before speed limit increase
 
-                lbz += [self.initialTime, velocityMin**2]
-                ubz += [self.terminalTime, speedLimit**2]
+            timeLower = self.initialTime
+            timeUpper = self.terminalTime
+
+            velocityLower = velocityMin ** 2
+            velocityUpper = speedLimit ** 2
+
+            if timingPoint is not None:
+
+                timeMinPoint = timingPoint["Lower time constraint [s]"]
+                timeMaxPoint = timingPoint["Upper time constraint [s]"]
+                velocityMinPoint = timingPoint["Lower speed constraint [m/s]"]
+                velocityMaxPoint = timingPoint["Upper speed constraint [m/s]"]
+
+                if isSet(timeMinPoint):
+
+                    timeLower = timeMinPoint
+
+                if isSet(timeMaxPoint):
+
+                    timeUpper = timeMaxPoint
+
+                if isSet(velocityMinPoint):
+
+                    velocityLower = max(velocityLower, velocityMinPoint ** 2)
+
+                if isSet(velocityMaxPoint):
+
+                    velocityUpper = min(velocityUpper, velocityMaxPoint ** 2)
+
+            if i == 0:
+
+                timeLower = self.initialTime
+                velocityLower = self.initialVelocitySquared
+                velocityUpper = self.initialVelocitySquared
+
+            elif i == numIntervals:
+
+                timeUpper = self.terminalTime
+                velocityLower = self.terminalVelocitySquared
+                velocityUpper = self.terminalVelocitySquared
+
+            lbz += [timeLower, velocityLower]
+            ubz += [timeUpper, velocityUpper]
+
 
         # scaling of objective function (fixes convergence issues when using powerLosses)
 
@@ -328,7 +362,13 @@ class casadiSolver():
         self.ubg = ca.vcat(ubg)
 
 
-    def solve(self, terminalTime, initialTime=0, terminalVelocity=1, initialVelocity=1):
+    def solve(self, journey):
+
+        initialTime = journey.initialTime
+        terminalTime = journey.terminalTime
+        initialVelocity = journey.initialVelocity
+        terminalVelocity = journey.terminalVelocity
+
 
         # check boundary conditions on time
 

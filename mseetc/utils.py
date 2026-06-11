@@ -7,6 +7,7 @@ import casadi as ca
 from types import MethodType
 from distutils.spawn import find_executable
 
+import pandas as pd
 from matplotlib import pyplot as plt
 
 
@@ -642,6 +643,11 @@ def getRelevantEtcsBrakingPositions(track):
             relevantPositions.append(positions[idx])
 
     return relevantPositions
+
+
+def isSet( value):
+
+    return value is not None and not pd.isna(value)
 
 
 if __name__ == '__main__':
