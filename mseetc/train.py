@@ -66,7 +66,7 @@ class Train():
             raise ValueError("Redundant fields in train configuration: {}!".format(', '.join(set(config) - usedFields)))
 
         # read data
-        self.length = convertUnit(data['length']['value'], data['length']['unit'])  # train length [m]
+        self.length = convertUnit(data['length']['value'], data['length']['unit']) if "length" in data else None  # train length [m]
 
         self.mass = convertUnit(data['mass']['value'], data['mass']['unit'])  # train mass [kg]
 
@@ -96,7 +96,7 @@ class Train():
 
         self.r1 = convertUnit(data['rolling resistance r1']['value'], data['rolling resistance r1']['unit'])  # linear term [N/(m/s)]
 
-        self.r2 = convertUnit(data['rolling resistance r2']['value'], data['rolling resistance r2']['unit'])  # quadratic term [N/(m/s)^2]
+        self.r2 = convertUnit(data['rolling resistance r2']['value'], data['rolling resistance r2']['unit'])  # quadratic term [N/(m/s)^2
 
         # TODO: unify with case of dynamic efficiency
         if 'efficiency traction' in data or 'efficiency reg brake' in data:
@@ -224,7 +224,7 @@ class Train():
 
     def checkFields(self):
 
-        if self.length is None or self.length < 0 or np.isinf(self.length):
+        if self.length is not None and (self.length < 0 or np.isinf(self.length)):
 
             raise ValueError("Train length must be a positive number, not {}!".format(self.length))
 

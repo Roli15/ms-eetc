@@ -45,11 +45,8 @@ if __name__ == '__main__':
 
     from mseetc.train import Train
     from mseetc.track import Track
+    from mseetc.journey import Journey
 
-    # Timetable
-    startPosition = 0       # [m]
-    endPosition = 20000     # [m]
-    duration = (endPosition-startPosition) / (105/3.6)       # [s]
 
     train = Train(config={'id':'CH_Stadler_FLIRT_TPF'}, pathJSON='../trains')
     train.forceMinPn = 0
@@ -67,7 +64,7 @@ if __name__ == '__main__':
     opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True}
 
     solver = casadiSolver(train, track, journey, opts)
-    df, stats = solver.solve(terminalTime=journey.terminalTime, initialTime=journey.initialTime)
+    df, stats = solver.solve(journey)
 
     printStats(df, stats, solver, train)
 
@@ -75,8 +72,8 @@ if __name__ == '__main__':
     track.setEtcsSpeedLimits(train)
     opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True, 'withEtcsBrakingCurves': True}
 
-    solverEtcs = casadiSolver(train, track, opts)
-    dfEtcs, statsEtcs = solverEtcs.solve(duration)
+    solverEtcs = casadiSolver(train, track, journey, opts)
+    dfEtcs, statsEtcs = solverEtcs.solve(journey)
 
     printStats(dfEtcs, statsEtcs, solverEtcs, train)
 

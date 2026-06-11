@@ -475,6 +475,7 @@ if __name__ == '__main__':
 
     from mseetc.train import Train
     from mseetc.track import Track
+    from mseetc.journey import Journey
 
     # Example on how to solve an OCP
 
@@ -482,11 +483,14 @@ if __name__ == '__main__':
 
     track = Track(config={'id':'00_var_speed_limit_100'})
 
+    journey = Journey(config={'id':'00_var_speed_limit_100_Journey_01'}, pathJSON='../journeys')
+    track.updateLimits(positionStart=journey.positionStart, positionEnd=journey.positionEnd, unit='m')
+
     opts = {'numIntervals':200, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True}
 
-    solver = casadiSolver(train, track, opts)
+    solver = casadiSolver(train, track, journey, opts)
 
-    df, stats = solver.solve(1541)
+    df, stats = solver.solve(journey)
 
     # print some info
     if df is not None:
