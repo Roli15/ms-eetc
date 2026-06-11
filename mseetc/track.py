@@ -237,17 +237,22 @@ class Track():
         self.altitude = convertUnit(data['altitude']['value'], data['altitude']['unit']) if 'altitude' in data else 0
         self.title = data['metadata']['id']
 
-        self.importSpeedLimitTuples(data['speed limits']['values'], data['speed limits']['units']['velocity'])
+        self.importSpeedLimitTuples(data['speed limits']['values'],
+                                    data['speed limits']['units']['position'],
+                                    data['speed limits']['units']['velocity'])
 
         self.importGradientTuples(data['gradients']['values'] if 'gradients' in data else [(0.0, 0.0)],
+                                  data['gradients']['units']['position'] if 'gradients' in data else 'm',
                                   data['gradients']['units']['slope'] if 'gradients' in data else 'permil')
 
         self.importCurvatureTuples(data['curvatures']['values'] if 'curvatures' in data else [(0.0, "infinity", "infinity")],
+                                   data['curvatures']['units']['position'] if 'curvatures' in data else 'm',
                                    data['curvatures']['units']['radius at start'] if 'curvatures' in data else "m",
                                    data['curvatures']['units']['radius at end'] if 'curvatures' in data else "m",
                                    config['clothoidSamplingInterval'] if 'clothoidSamplingInterval' in config else None)
 
         self.importTunnelTuples(data['tunnels']['values'] if 'tunnels' in data else [(0.0, 0.0, "infinity")],
+                                data['tunnels']['units']['position'] if 'tunnels' in data else 'm',
                                 data['tunnels']['units']['length'] if 'tunnels' in data else 'm',
                                 data['tunnels']['units']['cross section'] if 'tunnels' in data else 'm^2')
 
@@ -368,49 +373,61 @@ class Track():
             raise ValueError("ETCS braking parameter 'Kt_int' must be positive, not {}!".format(self.KtInt))
 
 
-    def importGradientTuples(self, tuples, unit='permil'):
+    def importGradientTuples(self, tuples, unitPosition='m', unitGradient='permil'):
 
         if not self.lengthOk():
 
             raise ValueError("Cannot import gradients without a valid track length!")
 
-        if unit not in {'permil'}:
+        if unitPosition not in {'m', 'km'}:
+
+            raise ValueError("Specified gradient position unit not supported!")
+
+        if unitGradient not in {'permil'}:
 
             raise ValueError("Specified gradient unit not supported!")
 
+        tuples = [(convertUnit(p, unitPosition), g) for p, g in tuples]
         self.gradients = importTuples(tuples, 'Position [m]', 'Gradient [permil]')
 
         checkDataFrame(self.gradients, self.length)
 
 
-    def importSpeedLimitTuples(self, tuples, unit='km/h'):
+    def importSpeedLimitTuples(self, tuples, unitPosition='m', unitVelocity='km/h'):
 
         if not self.lengthOk():
 
             raise ValueError("Cannot import speed limits without a valid track length!")
 
-        if unit not in {'km/h', 'm/s'}:
+        if unitPosition not in {'m', 'km'}:
+
+            raise ValueError("Specified speed limit position unit not supported!")
+
+        if unitVelocity not in {'km/h', 'm/s'}:
 
             raise ValueError("Specified speed unit not supported!")
 
-        tuples = [(p, convertUnit(v, unit)) for p,v in tuples]
+        tuples = [(convertUnit(p, unitPosition), convertUnit(v, unitVelocity)) for p, v in tuples]
         self.speedLimits = importTuples(tuples, 'Position [m]', 'Speed limit [m/s]')
 
         checkDataFrame(self.speedLimits, self.length)
 
-
-    def importCurvatureTuples(self, tuples, unitRadiusStart='m', unitRadiusEnd='m', clothoidSamplingInterval=None):
+    def importCurvatureTuples(self, tuples, unitPosition='m', unitRadiusStart='m', unitRadiusEnd='m', clothoidSamplingInterval=None):
 
         if not self.lengthOk():
 
             raise ValueError("Cannot import curvature without a valid track length!")
+
+        if unitPosition not in {'m', 'km'}:
+
+            raise ValueError("Specified curvature position unit not supported!")
 
         if unitRadiusStart not in {'m', 'km'} or unitRadiusEnd not in {'m', 'km'}:
 
             raise ValueError("Specified curvature radius unit not supported!")
 
         # if radius is 'infinity', the casting to float produces the float inf
-        tuples = [(p, convertUnit(float(radiusStart), unitRadiusStart), convertUnit(float(radiusEnd), unitRadiusEnd)) for p, radiusStart, radiusEnd in tuples]
+        tuples = [(convertUnit(p, unitPosition), convertUnit(float(radiusStart), unitRadiusStart), convertUnit(float(radiusEnd), unitRadiusEnd)) for p, radiusStart, radiusEnd in tuples]
 
         tuples = self.sampleClothoid(tuples, clothoidSamplingInterval)
 
@@ -501,17 +518,21 @@ class Track():
         return result
 
 
-    def importTunnelTuples(self, tuples, unitLength='m', unitCrossSection='m^2'):
+    def importTunnelTuples(self, tuples, unitPosition='m', unitLength='m', unitCrossSection='m^2'):
 
         if not self.lengthOk():
 
             raise ValueError("Cannot import tunnels without a valid track length!")
 
+        if unitPosition not in {'m', 'km'}:
+
+            raise ValueError("Specified tunnel position unit not supported!")
+
         if unitLength not in {'m', 'km'} or unitCrossSection not in {'m^2'}:
 
             raise ValueError("Specified tunnel units not supported!")
 
-        tuples = [(p, convertUnit(l, unitLength), convertUnit(c, unitCrossSection)) for p,l,c in tuples]
+        tuples = [(convertUnit(p, unitPosition), convertUnit(l, unitLength), convertUnit(c, unitCrossSection)) for p,l,c in tuples]
         self.crossSections = importTuples(tuples, 'Position [m]', ['Length [m]', 'CrossSection [m^2]'])
 
 
