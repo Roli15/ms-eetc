@@ -133,7 +133,7 @@ class casadiSolver():
         if opts.withEtcsBrakingCurves:
 
             velocities = np.interp(self.points.index.to_numpy(), track.etcsPositions, track.etcsVelocities)
-            self.points["Speed limit [m/s]"] = velocities
+            self.points["Speed limit [m/s]"] = np.maximum(velocities, velocityMin)
 
         # real-time parameters
 

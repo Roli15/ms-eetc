@@ -3,7 +3,6 @@ from matplotlib import pyplot as plt
 
 from mseetc.efficiency import totalLossesFunction
 from mseetc.etcs import getEtcsSpeedLimits
-from mseetc.journey import Journey
 from mseetc.ocp import casadiSolver
 
 
@@ -41,6 +40,22 @@ def printStats(df, stats, solver, train):
         print("Solver failed!")
 
 
+def plotShootingNodes(ax, positions):
+
+    for pos in positions:
+
+        ax.vlines(pos / 1000, 0, 400, color='red', linewidth=0.1)
+
+
+def plotOCPSpeedLimit(ax, solver):
+
+    positions = solver.points.index.to_numpy()
+    speedLimits = solver.points["Speed limit [m/s]"].to_numpy()
+
+
+    ax.step(positions/1000, speedLimits*3.6, where="post", color="green", linestyle="-", linewidth=1, label="OCP Speed Limit")
+
+
 if __name__ == '__main__':
 
     from mseetc.train import Train
@@ -61,7 +76,7 @@ if __name__ == '__main__':
     track.updateLimits(positionStart=journey.positionStart, positionEnd=journey.positionEnd, unit='m')
 
     # non-adjusted speed profile
-    opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True}
+    opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':5}, 'energyOptimal':True}
 
     solver = casadiSolver(train, track, journey, opts)
     df, stats = solver.solve(journey)
@@ -70,7 +85,7 @@ if __name__ == '__main__':
 
     # ETCS-adjusted speed profile
     track.setEtcsSpeedLimits(train)
-    opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':1}, 'energyOptimal':True, 'withEtcsBrakingCurves': True}
+    opts = {'numIntervals':600, 'integrationMethod':'RK', 'integrationOptions':{'numApproxSteps':5}, 'energyOptimal':True, 'withEtcsBrakingCurves': True}
 
     solverEtcs = casadiSolver(train, track, journey, opts)
     dfEtcs, statsEtcs = solverEtcs.solve(journey)
@@ -80,7 +95,10 @@ if __name__ == '__main__':
 
     ### Plot Trajectory
 
-    fig, ax = plt.subplots(figsize=(16, 8))
+    withShootingNodes = True
+    withOCPSpeedLimit = True
+
+    fig, ax = plt.subplots(figsize=(24, 12))
 
     x = track.speedLimits.index.to_numpy(dtype=float)
     v = track.speedLimits["Speed limit [m/s]"].to_numpy(dtype=float)
@@ -95,12 +113,21 @@ if __name__ == '__main__':
     ax.plot(df["Position [m]"] / 1000, df["Velocity [m/s]"] * 3.6, linestyle="--", label="non-adjusted speed profile")
     ax.plot(dfEtcs["Position [m]"] / 1000, dfEtcs["Velocity [m/s]"] * 3.6, linestyle="--", label="ETCS-adjusted speed profile")
 
+    if withShootingNodes:
+
+        plotShootingNodes(ax, dfEtcs["Position [m]"].to_numpy())
+
+    if withOCPSpeedLimit:
+
+        plotOCPSpeedLimit(ax, solverEtcs)
+
     ax.set_title("Speed Profile Comparison")
     ax.set_xlabel("Position [km]")
     ax.set_ylabel("Velocity [km/h]")
     ax.grid(True, which="both", linestyle="--", alpha=0.5)
     ax.legend(loc="upper right")
     ax.set_xlim(0, df["Position [m]"].max() / 1000)
+    ax.set_ylim(0, v_plot.max() * 3.6 * 1.3)
     ax.figure.tight_layout()
 
     plt.show()

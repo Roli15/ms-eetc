@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 
 from mseetc.etcs import getEtcsSpeedLimits
-from mseetc.utils import checkTTOBenchVersion, convertUnit, pickEquallySpacedPoints, plotSpeedLimits, plotGradients, \
-    plotCurvatures, getRelevantEtcsBrakingPositions
+from mseetc.utils import checkTTOBenchVersion, convertUnit, plotSpeedLimits, plotGradients, \
+    plotCurvatures, introduceSufficientShootingNodesForETCSBrakingCurves, getEquallyDistributedPoints
 
 plotDebug = False
 
@@ -98,15 +98,22 @@ def computeDiscretizationPoints(track, numIntervals, opts, timingPointPositions)
 
     df1 = track.mergeDataFrames()
 
-    requiredPoints = df1.index.to_numpy(dtype=float)
-    requiredPoints = np.append(requiredPoints, timingPointPositions)
+    requiredPoints = np.concatenate([df1.index.to_numpy(dtype=float), timingPointPositions])
 
     if opts.withEtcsBrakingCurves:
 
-        brakingPoints = getRelevantEtcsBrakingPositions(track)
+        brakingPoints = introduceSufficientShootingNodesForETCSBrakingCurves(track, requiredPoints)
         requiredPoints = np.append(requiredPoints, brakingPoints)
 
-    pos = pickEquallySpacedPoints(0, track.length, numIntervals, requiredPoints)
+    requiredPoints = np.unique(np.append(requiredPoints, [0, track.length]))
+    numMissingPoints = numIntervals + 1 - len(requiredPoints)
+
+    if numMissingPoints < 0:
+
+        raise ValueError(f"Increase num of intervals by {numMissingPoints}!")
+
+    newPositions = getEquallyDistributedPoints(0.0, track.length, numMissingPoints, requiredPoints)
+    pos = np.sort(np.unique(np.concatenate([requiredPoints, newPositions])))
 
     df2 = pd.DataFrame({'position [m]':pos}).set_index('position [m]')
     df3 = df2.join(df1, how='outer').ffill()

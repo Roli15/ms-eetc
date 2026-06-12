@@ -26,8 +26,8 @@
           },
           {
             "position": 20000,
-            "lower time constraint": 685,
-            "upper time constraint": 685,
+            "lower time constraint": 700,
+            "upper time constraint": 700,
             "lower speed constraint": 0,
             "upper speed constraint": 0
           }

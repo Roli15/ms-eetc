@@ -597,8 +597,8 @@ if __name__ == '__main__':
     target = BrakingTarget(
             position=5000,
             overlap= 100,
-            permittedVelocity=160/3.6,
-            targetVelocity=0/3.6
+            permittedVelocity=130/3.6,
+            targetVelocity=100/3.6
     )
 
     addConstantVelocitySections = False
